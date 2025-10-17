@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "profile": {
+    "id": "example-dev-team",
+    "name": "Development Team Profile",
+    "description": "Configuration profile for development team members",
+    "environment": "development"
+  },
+  "devices": [
+    "example-dev-workstation"
+  ],
+  "preferences": {
+    "defaultQuality": "high",
+    "autoConnect": false,
+    "saveCredentials": false,
+    "defaultColorDepth": 24,
+    "enableClipboard": true,
+    "enableFileTransfer": false
+  },
+  "metadata": {
+    "createdAt": "2025-10-17T08:00:00Z",
+    "updatedAt": "2025-10-17T08:00:00Z",
+    "owner": "devteam",
+    "maintainers": ["devteam-lead", "sysadmin"]
+  }
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/divyamohan1993/remote-control-setup/blob/main/configs/README.md
+    about: Read the configuration documentation
+  - name: 💬 Discussions
+    url: https://github.com/divyamohan1993/remote-control-setup/discussions
+    about: Ask questions and discuss ideas

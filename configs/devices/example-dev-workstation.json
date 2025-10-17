@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "device": {
+    "id": "dev-workstation-01",
+    "name": "Development Workstation",
+    "type": "desktop",
+    "description": "Primary development workstation with VNC access",
+    "tags": ["development", "workstation", "vnc"]
+  },
+  "connection": {
+    "protocol": "vnc",
+    "host": "dev-ws-01.local",
+    "port": 5900,
+    "secure": true,
+    "authentication": {
+      "method": "password",
+      "username": "developer",
+      "requiresCredentials": true
+    }
+  },
+  "settings": {
+    "quality": "high",
+    "colorDepth": 24,
+    "clipboard": true,
+    "fileTransfer": false,
+    "audio": false
+  },
+  "metadata": {
+    "createdAt": "2025-10-17T08:00:00Z",
+    "updatedAt": "2025-10-17T08:00:00Z",
+    "owner": "devteam",
+    "maintainers": ["devteam", "sysadmin"]
+  }
+}
