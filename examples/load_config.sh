@@ -31,21 +31,32 @@ fi
 
 # Fetch configuration
 echo "Fetching configuration from: $CONFIG_URL"
-CONFIG=$(curl -s "$CONFIG_URL")
+CONFIG=$(curl -s -f "$CONFIG_URL" 2>&1)
+CURL_EXIT=$?
 
 # Check if curl was successful
-if [ -z "$CONFIG" ]; then
-    echo "Error: Failed to fetch configuration"
+if [ $CURL_EXIT -ne 0 ]; then
+    echo "Error: Failed to fetch configuration (curl exit code: $CURL_EXIT)"
     exit 1
 fi
 
-# Parse configuration
-DEVICE_NAME=$(echo "$CONFIG" | jq -r '.device.name')
-DEVICE_ID=$(echo "$CONFIG" | jq -r '.device.id')
-DEVICE_TYPE=$(echo "$CONFIG" | jq -r '.device.type')
-PROTOCOL=$(echo "$CONFIG" | jq -r '.connection.protocol')
-HOST=$(echo "$CONFIG" | jq -r '.connection.host')
-PORT=$(echo "$CONFIG" | jq -r '.connection.port')
+if [ -z "$CONFIG" ]; then
+    echo "Error: Empty response from URL"
+    exit 1
+fi
+
+# Validate JSON and parse configuration
+if ! echo "$CONFIG" | jq . > /dev/null 2>&1; then
+    echo "Error: Invalid JSON response"
+    exit 1
+fi
+
+DEVICE_NAME=$(echo "$CONFIG" | jq -r '.device.name // "N/A"')
+DEVICE_ID=$(echo "$CONFIG" | jq -r '.device.id // "N/A"')
+DEVICE_TYPE=$(echo "$CONFIG" | jq -r '.device.type // "N/A"')
+PROTOCOL=$(echo "$CONFIG" | jq -r '.connection.protocol // "unknown"')
+HOST=$(echo "$CONFIG" | jq -r '.connection.host // "unknown"')
+PORT=$(echo "$CONFIG" | jq -r '.connection.port // 0')
 USERNAME=$(echo "$CONFIG" | jq -r '.connection.authentication.username // "N/A"')
 
 # Display configuration
@@ -78,7 +89,13 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         vnc)
             echo "Connecting via VNC..."
             if command -v vncviewer &> /dev/null; then
-                vncviewer "$HOST:$PORT"
+                # VNC uses display numbers: DISPLAY = PORT - 5900
+                if [ "$PORT" -ge 5900 ]; then
+                    DISPLAY=$((PORT - 5900))
+                    vncviewer "$HOST:$DISPLAY"
+                else
+                    vncviewer "$HOST::$PORT"
+                fi
             else
                 echo "VNC viewer not found. Please install a VNC client."
             fi
