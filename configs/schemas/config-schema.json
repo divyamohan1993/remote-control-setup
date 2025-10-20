@@ -1,0 +1,155 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/divyamohan1993/remote-control-setup/schemas/config-schema.json",
+  "title": "Remote Control Configuration",
+  "description": "Schema for remote control software configuration",
+  "type": "object",
+  "required": ["version", "device", "connection"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Configuration version",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "examples": ["1.0.0"]
+    },
+    "device": {
+      "type": "object",
+      "required": ["id", "name", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique device identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable device name"
+        },
+        "type": {
+          "type": "string",
+          "description": "Device type",
+          "enum": ["desktop", "server", "mobile", "iot", "custom"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional device description"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags for categorization"
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "required": ["protocol", "port"],
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "description": "Connection protocol",
+          "enum": ["vnc", "rdp", "ssh", "http", "https", "websocket", "custom"]
+        },
+        "host": {
+          "type": "string",
+          "description": "Host address or hostname"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Connection port",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "secure": {
+          "type": "boolean",
+          "description": "Use secure connection",
+          "default": true
+        },
+        "authentication": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["password", "key", "token", "oauth", "none"]
+            },
+            "username": {
+              "type": "string"
+            },
+            "requiresCredentials": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "proxy": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "description": "Additional settings",
+      "properties": {
+        "quality": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "auto"]
+        },
+        "colorDepth": {
+          "type": "integer",
+          "enum": [8, 16, 24, 32]
+        },
+        "clipboard": {
+          "type": "boolean",
+          "default": true
+        },
+        "fileTransfer": {
+          "type": "boolean",
+          "default": false
+        },
+        "audio": {
+          "type": "boolean",
+          "default": false
+        },
+        "customSettings": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "maintainers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

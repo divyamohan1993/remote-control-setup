@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "device": {
+    "id": "example-desktop-001",
+    "name": "Example Desktop Computer",
+    "type": "desktop",
+    "description": "Template configuration for desktop remote control",
+    "tags": ["template", "desktop", "vnc"]
+  },
+  "connection": {
+    "protocol": "vnc",
+    "host": "example.com",
+    "port": 5900,
+    "secure": true,
+    "authentication": {
+      "method": "password",
+      "username": "user",
+      "requiresCredentials": true
+    },
+    "proxy": {
+      "enabled": false
+    }
+  },
+  "settings": {
+    "quality": "high",
+    "colorDepth": 24,
+    "clipboard": true,
+    "fileTransfer": false,
+    "audio": false
+  },
+  "metadata": {
+    "createdAt": "2025-10-17T08:00:00Z",
+    "owner": "admin",
+    "maintainers": ["admin"]
+  }
+}

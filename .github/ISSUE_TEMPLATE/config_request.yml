@@ -1,0 +1,82 @@
+name: Configuration Request
+description: Request a new configuration or modification
+title: "[CONFIG] "
+labels: ["enhancement", "configuration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Request a new configuration or changes to existing ones
+        
+  - type: dropdown
+    id: request-type
+    attributes:
+      label: Request Type
+      description: What type of request is this?
+      options:
+        - New Device Configuration
+        - New Profile
+        - New Template
+        - Modify Existing Configuration
+        - Other
+    validations:
+      required: true
+      
+  - type: input
+    id: config-name
+    attributes:
+      label: Configuration Name
+      description: Name for the configuration
+      placeholder: e.g., Production Server 01
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: device-type
+    attributes:
+      label: Device Type
+      description: What type of device?
+      options:
+        - Desktop
+        - Server
+        - Mobile
+        - IoT
+        - Custom
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Connection Protocol
+      description: Which protocol should be used?
+      options:
+        - VNC
+        - RDP
+        - SSH
+        - HTTP/HTTPS
+        - WebSocket
+        - Custom
+    validations:
+      required: true
+      
+  - type: textarea
+    id: details
+    attributes:
+      label: Configuration Details
+      description: Provide details about the configuration
+      placeholder: |
+        Host: example.com
+        Port: 5900
+        Authentication: password
+        Any other specific requirements...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that might be helpful
+    validations:
+      required: false

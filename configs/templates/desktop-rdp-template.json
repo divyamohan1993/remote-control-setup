@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "device": {
+    "id": "example-rdp-001",
+    "name": "Example Windows Desktop",
+    "type": "desktop",
+    "description": "Template configuration for Windows RDP",
+    "tags": ["template", "desktop", "rdp", "windows"]
+  },
+  "connection": {
+    "protocol": "rdp",
+    "host": "windows.example.com",
+    "port": 3389,
+    "secure": true,
+    "authentication": {
+      "method": "password",
+      "username": "Administrator",
+      "requiresCredentials": true
+    },
+    "proxy": {
+      "enabled": false
+    }
+  },
+  "settings": {
+    "quality": "high",
+    "colorDepth": 32,
+    "clipboard": true,
+    "fileTransfer": true,
+    "audio": true,
+    "customSettings": {
+      "fullScreen": false,
+      "multiMonitor": false
+    }
+  },
+  "metadata": {
+    "createdAt": "2025-10-17T08:00:00Z",
+    "owner": "admin",
+    "maintainers": ["admin"]
+  }
+}

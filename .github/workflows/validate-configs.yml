@@ -1,0 +1,61 @@
+name: Validate Configurations
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'configs/**/*.json'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'configs/**/*.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install JSON Schema validator
+      run: npm install -g ajv-cli
+      
+    - name: Validate device configurations
+      run: |
+        echo "Validating device configurations..."
+        for config in configs/devices/*.json; do
+          if [ -f "$config" ]; then
+            echo "Validating $config"
+            ajv validate -s configs/schemas/config-schema.json -d "$config" --strict=false || exit 1
+          fi
+        done
+        
+    - name: Validate template configurations
+      run: |
+        echo "Validating template configurations..."
+        for config in configs/templates/*.json; do
+          if [ -f "$config" ]; then
+            echo "Validating $config"
+            ajv validate -s configs/schemas/config-schema.json -d "$config" --strict=false || exit 1
+          fi
+        done
+        
+    - name: Check JSON formatting
+      run: |
+        echo "Checking JSON formatting..."
+        for file in configs/**/*.json; do
+          if [ -f "$file" ]; then
+            echo "Checking $file"
+            python3 -m json.tool "$file" > /dev/null || exit 1
+          fi
+        done
+        
+    - name: Validation Summary
+      if: success()
+      run: echo "✅ All configurations are valid!"
