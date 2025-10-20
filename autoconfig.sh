@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# Usage: curl -fsSL "https://raw.githubusercontent.com/divyamohan1993/remote-control-setup/refs/heads/main/autoconfig.sh"   | sudo DOMAIN=remote.dmj.one ADMIN_USER=admin ADMIN_PASS='admin123!' bash
+# sudo bash -lc 'curl -fsSL https://raw.githubusercontent.com/divyamohan1993/remote-control-setup/refs/heads/main/autoconfig.sh?nocache=$(date +%s) | sudo DOMAIN=remote.dmj.one ADMIN_USER=admin ADMIN_PASS=admin123 bash'
 set -euo pipefail
 
 # --------------------------
@@ -25,7 +28,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 echo "[1/8] Installing base packages..."
 apt-get update -y
-apt-get install -y curl gnupg ca-certificates nginx
+apt-get install -y curl gnupg ca-certificates nginx openssl
 
 # --------------------------
 # Node.js (>=16 required). Install Node 20 via NodeSource if needed.
@@ -72,11 +75,8 @@ cat >/opt/meshcentral/meshcentral-data/config.json <<EOF
     "TlsOffload": "127.0.0.1",
     "ExactPorts": true,
     "Minify": 1,
-    "SelfUpdate": true,
-    "WanOnly": true,
-
-    // "User" auto-logs all browsers in as this user (insecure, but you asked for MVP)
-    "User": "${ADMIN_USER}"
+    "WANonly": true,
+    "ignoreAgentHashCheck": true
   },
   "domains": {
     "": {
@@ -116,14 +116,15 @@ EOF
 systemctl daemon-reload
 systemctl enable --now meshcentral
 
-# Wait until MeshCentral generates its self-signed certs we will feed to NGINX
-echo "[6/8] Waiting for MeshCentral to generate web certs..."
-for _ in $(seq 1 60); do
-  if [[ -f /opt/meshcentral/meshcentral-data/webserver-cert-public.crt && -f /opt/meshcentral/meshcentral-data/webserver-cert-private.key ]]; then
-    break
-  fi
-  sleep 2
-done
+# Generate a self-signed TLS cert for NGINX (TLS offload)
+echo "[6/8] Generating self-signed TLS cert for NGINX (TLS offload)..."
+mkdir -p /etc/nginx/ssl
+if [ ! -f "/etc/nginx/ssl/${DOMAIN}.crt" ]; then
+  openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+    -subj "/CN=${DOMAIN}" \
+    -keyout /etc/nginx/ssl/${DOMAIN}.key \
+    -out /etc/nginx/ssl/${DOMAIN}.crt
+fi
 
 # Stop service to perform "server recovery" commands
 systemctl stop meshcentral || true
@@ -150,12 +151,13 @@ server {
 }
 
 server {
-  listen 443 ssl http2;
+  listen 443 ssl;
+  http2 on;
   server_name ${DOMAIN};
 
-  # Use MeshCentral's generated cert/key (self-signed)
-  ssl_certificate     /opt/meshcentral/meshcentral-data/webserver-cert-public.crt;
-  ssl_certificate_key /opt/meshcentral/meshcentral-data/webserver-cert-private.key;
+  # Use locally generated self-signed cert/key (TLS offload)
+  ssl_certificate     /etc/nginx/ssl/${DOMAIN}.crt;
+  ssl_certificate_key /etc/nginx/ssl/${DOMAIN}.key;
 
   # Long timeouts for web sockets (agents and browser viewers)
   proxy_send_timeout 330s;
@@ -182,10 +184,10 @@ NGINX
 ln -sf /etc/nginx/sites-available/meshcentral.conf /etc/nginx/sites-enabled/meshcentral.conf
 [ -e /etc/nginx/sites-enabled/default ] && rm -f /etc/nginx/sites-enabled/default
 
-# Allow NGINX to read the private key (testing-only perms)
-chgrp www-data /opt/meshcentral/meshcentral-data/webserver-cert-private.key || true
-chmod 640 /opt/meshcentral/meshcentral-data/webserver-cert-private.key || true
-chmod 644 /opt/meshcentral/meshcentral-data/webserver-cert-public.crt || true
+# # Allow NGINX to read the private key (testing-only perms)
+# chgrp www-data /opt/meshcentral/meshcentral-data/webserver-cert-private.key || true
+# chmod 640 /opt/meshcentral/meshcentral-data/webserver-cert-private.key || true
+# chmod 644 /opt/meshcentral/meshcentral-data/webserver-cert-public.crt || true
 
 systemctl restart nginx
 systemctl restart meshcentral
@@ -195,7 +197,7 @@ systemctl restart meshcentral
   adddevicegroup \
   --loginuser "${ADMIN_USER}" \
   --loginpass "${ADMIN_PASS}" \
-  --url "https://${DOMAIN}" \
+  --url "ws://127.0.0.1:4430" \
   --name "Test Group" \
   --desc "Autocreated group for MVP" || true
 
