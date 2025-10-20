@@ -144,10 +144,43 @@ systemctl start meshcentral
 # --------------------------
 echo "[8/8] Configuring NGINX reverse proxy for ${DOMAIN}..."
 cat >/etc/nginx/sites-available/meshcentral.conf <<NGINX
+# Preserve visitor scheme from Cloudflare when available.
+# For direct (non-CF) requests, fall back to \$scheme.
+map \$http_x_forwarded_proto \$proxy_xfp {
+  default \$http_x_forwarded_proto;
+  ""      \$scheme;
+}
 server {
   listen 80;
   server_name ${DOMAIN};
-  return 301 https://\$host\$request_uri;
+
+  # If Cloudflare says the visitor used HTTPS at the edge,
+  # DO NOT redirect to HTTPS here (avoids Flexible SSL loops).
+  set \$redirect_to_https 1;
+  if (\$http_x_forwarded_proto = "https") { set \$redirect_to_https 0; }
+  if (\$redirect_to_https = 1) {
+    return 301 https://\$host\$request_uri;
+  }
+
+  # When behind Cloudflare Flexible, CF -> origin is HTTP.
+  # Proxy straight to MeshCentral without redirecting.
+  proxy_send_timeout 330s;
+  proxy_read_timeout 330s;
+  location / {
+    proxy_pass http://127.0.0.1:4430/;
+    proxy_http_version 1.1;
+
+    # WebSocket upgrade
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+
+    proxy_set_header Host \$host;
+    proxy_set_header X-Forwarded-Host \$host:\$server_port;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$proxy_xfp;
+
+    proxy_buffering off;
+  }
 }
 
 server {
@@ -173,8 +206,8 @@ server {
 
     proxy_set_header Host \$host;
     proxy_set_header X-Forwarded-Host \$host:\$server_port;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;    
+    proxy_set_header X-Forwarded-Proto \$proxy_xfp;
 
     proxy_buffering off;
   }
