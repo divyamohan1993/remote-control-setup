@@ -2,7 +2,7 @@
 
 # Usage: curl -fsSL "https://raw.githubusercontent.com/divyamohan1993/remote-control-setup/refs/heads/main/autoconfig.sh"   | sudo DOMAIN=remote.dmj.one ADMIN_USER=admin ADMIN_PASS='admin123!' bash
 # sudo bash -lc 'curl -fsSL https://raw.githubusercontent.com/divyamohan1993/remote-control-setup/refs/heads/main/autoconfig.sh?nocache=$(date +%s) | sudo DOMAIN=remote.dmj.one ADMIN_USER=admin ADMIN_PASS=admin123 bash'
-set -euo pipefail
+set -Eeuo pipefail
 
 # --------------------------
 # Config (overridable via env)
@@ -10,6 +10,30 @@ set -euo pipefail
 DOMAIN="${DOMAIN:-remote.dmj.one}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_PASS="${ADMIN_PASS:-admin123!}"
+
+# verbose error + trace to file (1=on, 0=off)
+VERBOSE_ERROR="${VERBOSE_ERROR:-1}"
+LOGFILE="${LOGFILE:-/var/log/autoconfig-meshcentral.log}"
+
+# ---- helper: diagnostics on failure ----
+on_err() {
+  local rc=$?
+  echo "[ERROR] Script failed at line ${BASH_LINENO[0]} (exit $rc)"
+  echo "        Last command: ${BASH_COMMAND}"
+  echo "        See log: $LOGFILE"
+  # Quick service diagnostics
+  systemctl --no-pager -l status meshcentral || true
+  journalctl -u meshcentral --no-pager -n 200 || true
+  ss -lntp | sed -n '1p;/:4430/p' || true
+  nginx -t || true
+  exit $rc
+}
+trap on_err ERR
+
+if [[ "$VERBOSE_ERROR" = "1" ]]; then
+  exec > >(tee -a "$LOGFILE") 2>&1
+  set -x
+fi
 
 # --------------------------
 # Pre-flight
@@ -29,6 +53,22 @@ export DEBIAN_FRONTEND=noninteractive
 echo "[1/8] Installing base packages..."
 apt-get update -y
 apt-get install -y curl gnupg ca-certificates nginx openssl
+
+# ---- small helpers ----
+wait_for_port() {
+  # wait_for_port host port timeout_seconds
+  local host="$1" port="$2" to="${3:-60}"
+  echo "[health] waiting for $host:$port up to ${to}s..."
+  for i in $(seq 1 "$to"); do
+    if timeout 1 bash -c "echo > /dev/tcp/$host/$port" 2>/dev/null; then
+      echo "[health] $host:$port is open"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "[health] $host:$port did not open in ${to}s"
+  return 1
+}
 
 # --------------------------
 # Node.js (>=16 required). Install Node 20 via NodeSource if needed.
@@ -104,7 +144,7 @@ Type=simple
 User=meshcentral
 WorkingDirectory=/opt/meshcentral
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node /opt/meshcentral/node_modules/meshcentral
+ExecStart=/usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js
 Restart=always
 RestartSec=3
 LimitNOFILE=262144
@@ -115,6 +155,7 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now meshcentral
+wait_for_port 127.0.0.1 4430 90 || { echo "[fatal] meshcentral did not start"; exit 1; }
 
 # Generate a self-signed TLS cert for NGINX (TLS offload)
 echo "[6/8] Generating self-signed TLS cert for NGINX (TLS offload)..."
@@ -132,12 +173,19 @@ systemctl stop meshcentral || true
 # Create admin user offline if needed, set password, promote to site admin
 echo "[7/8] Ensuring admin user exists..."
 if ! /usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js --listuserids 2>/dev/null | grep -q "^user//${ADMIN_USER}$"; then
-  /usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js --createaccount "${ADMIN_USER}" || true
+  /usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js \
+    --createaccount "${ADMIN_USER}" \
+    --pass "${ADMIN_PASS}" \
+    --email "${ADMIN_USER}@local" \
+    --name "Admin User" \
+    --domain "" || true
 fi
-/usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js --resetaccount "${ADMIN_USER}" --pass "${ADMIN_PASS}" || true
-/usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js --adminaccount "${ADMIN_USER}" || true
-
+/usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js --resetaccount "${ADMIN_USER}" --pass "${ADMIN_PASS}" --domain "" || true
+/usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshcentral.js --adminaccount "${ADMIN_USER}" --domain "" || true
+ 
 systemctl start meshcentral
+wait_for_port 127.0.0.1 4430 60 || { echo "[fatal] meshcentral did not come back after recovery"; exit 1; }
+ 
 
 # --------------------------
 # NGINX reverse proxy (TLS offload)
@@ -222,14 +270,17 @@ ln -sf /etc/nginx/sites-available/meshcentral.conf /etc/nginx/sites-enabled/mesh
 # chmod 640 /opt/meshcentral/meshcentral-data/webserver-cert-private.key || true
 # chmod 644 /opt/meshcentral/meshcentral-data/webserver-cert-public.crt || true
 
-systemctl restart nginx
+nginx -t
+systemctl reload nginx
 systemctl restart meshcentral
+wait_for_port 127.0.0.1 4430 30 || { echo "[fatal] meshcentral not reachable after nginx reload"; exit 1; }
+ 
 
 # Create a default device group so "Add device" is immediately visible
 /usr/bin/node /opt/meshcentral/node_modules/meshcentral/meshctrl \
   adddevicegroup \
   --loginuser "${ADMIN_USER}" \
-  --loginpass "${ADMIN_PASS}" \
+  --loginpass "${ADMIN_PASS}" \  
   --url "ws://127.0.0.1:4430" \
   --name "Test Group" \
   --desc "Autocreated group for MVP" || true
@@ -239,6 +290,7 @@ echo "=============================================="
 echo "MeshCentral is ready at: https://${DOMAIN}"
 echo "Auto-login user: ${ADMIN_USER}"
 echo "Admin password:  ${ADMIN_PASS}"
+echo "Verbose log: ${LOGFILE}  (toggle with VERBOSE_ERROR=0/1)"
 echo
 echo "Open 'Test Group' → 'Add device' to download the Windows agent."
 echo "=============================================="
